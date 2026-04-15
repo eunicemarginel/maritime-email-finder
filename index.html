@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maritime Email Finder</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap"
+    rel="stylesheet" />
+  <style>
+    :root {
+      --navy: #0a1628;
+      --navy-mid: #112240;
+      --navy-light: #1d3461;
+      --ocean: #1a6b8a;
+      --cyan: #00c6d7;
+      --cyan-dim: #00c6d730;
+      --gold: #f0a500;
+      --gold-dim: #f0a50020;
+      --white: #f0f4f8;
+      --muted: #8899aa;
+      --success: #00d68f;
+      --danger: #ff6b6b;
+      --warn: #ffd166;
+      --border: #1d3461;
+      --radius: 6px;
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--navy);
+      color: var(--white);
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Background grid */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--navy-light) 1px, transparent 1px),
+        linear-gradient(90deg, var(--navy-light) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.15;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 32px 24px 80px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 40px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+    }
+
+    .logo-text h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: var(--white);
+    }
+
+    .logo-text p {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    .badge {
+      background: var(--cyan-dim);
+      border: 1px solid var(--cyan);
+      color: var(--cyan);
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 20px;
+      letter-spacing: 0.08em;
+      align-self: flex-start;
+    }
+
+    /* API Keys Panel */
+    .keys-panel {
+      background: var(--navy-mid);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .keys-panel summary {
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gold);
+      list-style: none;
+      user-select: none;
+    }
+
+    .keys-panel summary::after {
+      content: '▸';
+      margin-left: auto;
+      transition: transform 0.2s;
+    }
+
+    .keys-panel[open] summary::after {
+      transform: rotate(90deg);
+    }
+
+    .keys-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    @media(max-width: 600px) {
+      .keys-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .key-field label {
+      display: block;
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      margin-bottom: 6px;
+    }
+
+    .key-field input {
+      width: 100%;
+      background: var(--navy);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--cyan);
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      padding: 8px 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .key-field input:focus {
+      border-color: var(--cyan);
+    }
+
+    .key-field input::placeholder {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .key-hint {
+      margin-top: 12px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .key-hint a {
+      color: var(--cyan);
+      text-decoration: none;
+    }
+
+    .key-hint a:hover {
+      text-decoration: underline;
+    }
+
+    /* Search area */
+    .search-box {
+      background: var(--navy-mid);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .search-label {
+      font-family: 'Syne', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      margin-bottom: 12px;
+      display: block;
+    }
+
+    .search-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .search-input {
+      flex: 1;
+      background: var(--navy);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--white);
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--cyan);
+    }
+
+    .search-input::placeholder {
+      color: var(--muted);
+    }
+
+    .btn-search {
+      background: var(--cyan);
+      color: var(--navy);
+      border: none;
+      border-radius: var(--radius);
+      padding: 10px 20px;
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      white-space: nowrap;
+    }
+
+    .btn-search:hover {
+      opacity: 0.9;
+    }
+
+    .btn-search:active {
+      transform: scale(0.97);
+    }
+
+    .btn-search:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* Bulk input */
+    .bulk-area {
+      background: var(--navy-mid);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .bulk-area textarea {
+      width: 100%;
+      background: var(--navy);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--white);
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      padding: 10px 14px;
+      resize: vertical;
+      min-height: 90px;
+      outline: none;
+      transition: border-color 0.2s;
+      line-height: 1.7;
+    }
+
+    .bulk-area textarea:focus {
+      border-color: var(--cyan);
+    }
+
+    .bulk-area textarea::placeholder {
+      color: var(--muted);
+    }
+
+    .bulk-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .btn-bulk {
+      background: var(--gold);
+      color: var(--navy);
+      border: none;
+      border-radius: var(--radius);
+      padding: 10px 20px;
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .btn-bulk:hover {
+      opacity: 0.9;
+    }
+
+    .btn-bulk:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .bulk-hint {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* Progress */
+    #progress-wrap {
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    .progress-label {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .progress-bar-bg {
+      background: var(--navy-mid);
+      border-radius: 20px;
+      height: 5px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--cyan), var(--gold));
+      border-radius: 20px;
+      transition: width 0.4s ease;
+      width: 0%;
+    }
+
+    /* Results */
+    #results-wrap {
+      display: none;
+    }
+
+    .results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .results-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .results-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-export {
+      background: transparent;
+      border: 1px solid var(--cyan);
+      color: var(--cyan);
+      border-radius: var(--radius);
+      padding: 6px 14px;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-export:hover {
+      background: var(--cyan-dim);
+    }
+
+    .btn-clear {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: var(--radius);
+      padding: 6px 14px;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+
+    .btn-clear:hover {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    /* Table */
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 580px;
+    }
+
+    thead tr {
+      background: var(--navy-light);
+    }
+
+    thead th {
+      font-family: 'Syne', sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.1s;
+    }
+
+    tbody tr:last-child {
+      border-bottom: none;
+    }
+
+    tbody tr:hover {
+      background: var(--navy-mid);
+    }
+
+    tbody td {
+      padding: 11px 14px;
+      font-size: 12px;
+      vertical-align: middle;
+    }
+
+    .td-company {
+      font-family: 'Syne', sans-serif;
+      font-weight: 600;
+      font-size: 12px;
+    }
+
+    .td-domain {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .td-email {
+      color: var(--cyan);
+    }
+
+    .td-email.guessed {
+      color: var(--gold);
+    }
+
+    .td-source {
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 500;
+    }
+
+    .status-found {
+      background: #00d68f20;
+      color: var(--success);
+      border: 1px solid #00d68f40;
+    }
+
+    .status-guessed {
+      background: #f0a50020;
+      color: var(--gold);
+      border: 1px solid #f0a50040;
+    }
+
+    .status-none {
+      background: #ff6b6b15;
+      color: var(--danger);
+      border: 1px solid #ff6b6b30;
+    }
+
+    .status-searching {
+      background: #00c6d720;
+      color: var(--cyan);
+      border: 1px solid #00c6d740;
+    }
+
+    /* Log */
+    #log {
+      margin-top: 24px;
+    }
+
+    .log-header {
+      font-family: 'Syne', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      margin-bottom: 8px;
+    }
+
+    .log-box {
+      background: var(--navy);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      max-height: 160px;
+      overflow-y: auto;
+      font-size: 11px;
+      line-height: 1.8;
+      color: var(--muted);
+    }
+
+    .log-box:empty::before {
+      content: '— Waiting for search —';
+      color: #445566;
+    }
+
+    .log-line {
+      display: flex;
+      gap: 8px;
+    }
+
+    .log-time {
+      color: #445566;
+      min-width: 52px;
+    }
+
+    .log-ok {
+      color: var(--success);
+    }
+
+    .log-warn {
+      color: var(--warn);
+    }
+
+    .log-info {
+      color: var(--cyan);
+    }
+
+    .log-err {
+      color: var(--danger);
+    }
+
+    /* Stats row */
+    .stats-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .stat-card {
+      background: var(--navy-mid);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      flex: 1;
+      min-width: 100px;
+    }
+
+    .stat-num {
+      font-family: 'Syne', sans-serif;
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--white);
+    }
+
+    .stat-num.cyan {
+      color: var(--cyan);
+    }
+
+    .stat-num.gold {
+      color: var(--gold);
+    }
+
+    .stat-num.green {
+      color: var(--success);
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      margin-top: 2px;
+    }
+
+    /* Demo note */
+    .demo-note {
+      background: var(--gold-dim);
+      border: 1px solid #f0a50040;
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      font-size: 11px;
+      color: var(--gold);
+      line-height: 1.7;
+      margin-bottom: 20px;
+    }
+
+    .demo-note strong {
+      font-family: 'Syne', sans-serif;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--navy);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--navy-light);
+      border-radius: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrapper">
+
+    <!-- Header -->
+    <header>
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="40" height="40" rx="8" fill="#112240" />
+          <path d="M8 28 L20 14 L32 28" stroke="#00c6d7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            fill="none" />
+          <path d="M14 28 L20 20 L26 28" stroke="#f0a500" stroke-width="1.5" stroke-linecap="round"
+            stroke-linejoin="round" fill="none" />
+          <line x1="6" y1="30" x2="34" y2="30" stroke="#1d3461" stroke-width="2" stroke-linecap="round" />
+          <circle cx="20" cy="34" r="2" fill="#00c6d7" opacity="0.5" />
+        </svg>
+        <div class="logo-text">
+          <h1>Maritime Email Finder</h1>
+          <p>Singapore Maritime Agent Intelligence</p>
+        </div>
+      </div>
+      <div class="badge">FREE TOOL</div>
+    </header>
+
+    <!-- Demo Mode Note -->
+    <div class="demo-note" id="demo-note">
+      <strong>⚠ Demo Mode</strong> — Enter your API keys below to enable live search. Without keys, the tool runs with
+      <strong>realistic simulated results</strong> so you can see exactly how it works. Real API keys are free:
+      Hunter.io (25/mo) + Google Custom Search (100/day).
+    </div>
+
+    <!-- API Keys -->
+    <details class="keys-panel" id="keys-panel">
+      <summary>🔑 API Keys (optional — enables live results)</summary>
+      <div class="keys-grid">
+        <div class="key-field">
+          <label>HUNTER.IO API KEY</label>
+          <input type="password" id="hunter-key" placeholder="Paste your Hunter.io key here" />
+        </div>
+        <div class="key-field">
+          <label>GOOGLE CUSTOM SEARCH API KEY</label>
+          <input type="password" id="google-key" placeholder="Paste your Google CSE key here" />
+        </div>
+        <div class="key-field">
+          <label>GOOGLE SEARCH ENGINE ID (CX)</label>
+          <input type="text" id="google-cx" placeholder="Your Search Engine ID (cx=...)" />
+        </div>
+      </div>
+      <p class="key-hint">
+        Get free keys: <a href="https://hunter.io/api" target="_blank">hunter.io/api</a> (25 searches/month)
+        &nbsp;·&nbsp;
+        <a href="https://developers.google.com/custom-search/v1/overview" target="_blank">Google Custom Search</a>
+        (100/day) &nbsp;·&nbsp;
+        Keys are stored only in your browser session — never sent anywhere except the official APIs.
+      </p>
+    </details>
+
+    <!-- Single Search -->
+    <div class="search-box">
+      <span class="search-label">SINGLE COMPANY SEARCH</span>
+      <div class="search-row">
+        <input type="text" id="single-input" class="search-input"
+          placeholder="e.g. Pacific Carriers Singapore, Swire Shipping, PIL Singapore..." />
+        <button class="btn-search" id="btn-single" onclick="searchSingle()">Find Emails →</button>
+      </div>
+    </div>
+
+    <!-- Bulk Search -->
+    <div class="bulk-area">
+      <span class="search-label">BULK SEARCH — one company per line</span>
+      <textarea id="bulk-input"
+        placeholder="Pacific Carriers Singapore&#10;Swire Shipping Singapore&#10;PIL Pacific International Lines&#10;Masterbulk Singapore&#10;Nissen Kaiun Singapore"></textarea>
+      <div class="bulk-row">
+        <button class="btn-bulk" id="btn-bulk" onclick="searchBulk()">Run Bulk Search →</button>
+        <span class="bulk-hint">Processes companies one by one with a short delay to respect rate limits</span>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div id="progress-wrap">
+      <div class="progress-label">
+        <span id="progress-text">Searching...</span>
+        <span id="progress-pct">0%</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progress-bar"></div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row" id="stats-row" style="display:none">
+      <div class="stat-card">
+        <div class="stat-num cyan" id="stat-searched">0</div>
+        <div class="stat-label">COMPANIES SEARCHED</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num green" id="stat-found">0</div>
+        <div class="stat-label">EMAILS FOUND</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num gold" id="stat-guessed">0</div>
+        <div class="stat-label">PATTERNS GUESSED</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" id="stat-none">0</div>
+        <div class="stat-label">NO RESULT</div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="results-wrap">
+      <div class="results-header">
+        <div class="results-title">Results</div>
+        <div class="results-actions">
+          <button class="btn-export" onclick="exportCSV()">↓ Export CSV</button>
+          <button class="btn-clear" onclick="clearResults()">Clear</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>COMPANY</th>
+              <th>DOMAIN</th>
+              <th>EMAIL</th>
+              <th>TYPE</th>
+              <th>STATUS</th>
+            </tr>
+          </thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Log -->
+    <div id="log">
+      <div class="log-header">ACTIVITY LOG</div>
+      <div class="log-box" id="log-box"></div>
+    </div>
+
+  </div>
+
+  <script>
+    // ── State ──────────────────────────────────────────────────────────────────
+    let results = [];
+    let isRunning = false;
+
+    // ── Logging ────────────────────────────────────────────────────────────────
+    function log(msg, type = 'info') {
+      const box = document.getElementById('log-box');
+      const now = new Date();
+      const t = now.toTimeString().slice(0, 8);
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      line.innerHTML = `<span class="log-time">${t}</span><span class="log-${type}">${msg}</span>`;
+      box.appendChild(line);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    // ── Stats ──────────────────────────────────────────────────────────────────
+    function updateStats() {
+      document.getElementById('stats-row').style.display = 'flex';
+      document.getElementById('stat-searched').textContent = results.length;
+      document.getElementById('stat-found').textContent = results.filter(r => r.status === 'found').length;
+      document.getElementById('stat-guessed').textContent = results.filter(r => r.status === 'guessed').length;
+      document.getElementById('stat-none').textContent = results.filter(r => r.status === 'none').length;
+    }
+
+    // ── Progress ───────────────────────────────────────────────────────────────
+    function setProgress(current, total, label) {
+      const wrap = document.getElementById('progress-wrap');
+      wrap.style.display = 'block';
+      const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+      document.getElementById('progress-bar').style.width = pct + '%';
+      document.getElementById('progress-pct').textContent = pct + '%';
+      document.getElementById('progress-text').textContent = label || 'Processing...';
+      if (current >= total && total > 0) setTimeout(() => { wrap.style.display = 'none'; }, 1500);
+    }
+
+    // ── Render row ─────────────────────────────────────────────────────────────
+    function renderRow(r) {
+      const tbody = document.getElementById('results-body');
+      document.getElementById('results-wrap').style.display = 'block';
+      const tr = document.createElement('tr');
+      tr.id = 'row-' + r.id;
+
+      const statusMap = {
+        found: '<span class="status-badge status-found">● found</span>',
+        guessed: '<span class="status-badge status-guessed">◑ guessed</span>',
+        none: '<span class="status-badge status-none">○ no result</span>',
+        searching: '<span class="status-badge status-searching">◌ searching</span>',
+      };
+
+      tr.innerHTML = `
+    <td class="td-company">${r.company}</td>
+    <td class="td-domain">${r.domain || '—'}</td>
+    <td class="td-email ${r.status === 'guessed' ? 'guessed' : ''}">${r.email || '—'}</td>
+    <td class="td-source">${r.source || '—'}</td>
+    <td>${statusMap[r.status] || ''}</td>
+  `;
+      const existing = document.getElementById('row-' + r.id);
+      if (existing) existing.replaceWith(tr);
+      else tbody.appendChild(tr);
+    }
+
+    // ── API helpers ────────────────────────────────────────────────────────────
+    async function findDomainGoogle(company, apiKey, cx) {
+      const query = encodeURIComponent(company + ' Singapore official website');
+      const url = `https://www.googleapis.com/customsearch/v1?q=${query}&key=${apiKey}&cx=${cx}&num=1`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('Google API error ' + resp.status);
+      const data = await resp.json();
+      if (data.items && data.items.length > 0) {
+        const link = data.items[0].link;
+        const domain = new URL(link).hostname.replace('www.', '');
+        return domain;
+      }
+      return null;
+    }
+
+    async function findEmailsHunter(domain, apiKey) {
+      const url = `https://api.hunter.io/v2/domain-search?domain=${domain}&api_key=${apiKey}&limit=5`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('Hunter API error ' + resp.status);
+      const data = await resp.json();
+      if (data.data && data.data.emails && data.data.emails.length > 0) {
+        return data.data.emails.map(e => ({
+          email: e.value,
+          source: e.type || 'domain',
+          status: 'found'
+        }));
+      }
+      return [];
+    }
+
+    // ── Email pattern guesser ──────────────────────────────────────────────────
+    function guessEmails(domain) {
+      const prefixes = ['info', 'sales', 'operations', 'contact', 'chartering', 'agency'];
+      return prefixes.map(p => ({ email: `${p}@${domain}`, source: 'pattern guess', status: 'guessed' }));
+    }
+
+    // ── Demo simulation ────────────────────────────────────────────────────────
+    const DEMO_COMPANIES = {
+      default: {
+        domains: ['pacificcarriers.com', 'swire.com', 'pilship.com', 'berge.com', 'thoresen.com', 'masterbulk.com'],
+        emails: [
+          ['info', 'operations', 'chartering'],
+          ['agency.sg', 'ops', 'singapore'],
+          ['info', 'sales', 'marine.ops'],
+        ]
+      }
+    };
+
+    async function demoSearch(company) {
+      await sleep(600 + Math.random() * 800);
+      const idx = Math.abs(hashCode(company)) % 6;
+      const domains = DEMO_COMPANIES.default.domains;
+      const domain = domains[idx] || 'example-maritime.com.sg';
+      const prefixes = DEMO_COMPANIES.default.emails[idx % 3];
+
+      const roll = Math.random();
+      if (roll < 0.6) {
+        // Found real-ish emails
+        const emailList = prefixes.map(p => ({
+          email: `${p}@${domain}`,
+          source: p.includes('.') ? 'website page' : 'domain search',
+          status: 'found'
+        }));
+        return { domain, emails: emailList.slice(0, 2 + Math.floor(Math.random() * 2)) };
+      } else if (roll < 0.85) {
+        return { domain, emails: [{ email: `info@${domain}`, source: 'pattern guess', status: 'guessed' }] };
+      } else {
+        return { domain: domain, emails: [] };
+      }
+    }
+
+    function hashCode(str) {
+      let h = 0;
+      for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+      return h;
+    }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    // ── Core search logic ──────────────────────────────────────────────────────
+    async function processCompany(company, index) {
+      const hunterKey = document.getElementById('hunter-key').value.trim();
+      const googleKey = document.getElementById('google-key').value.trim();
+      const googleCx = document.getElementById('google-cx').value.trim();
+      const liveMode = hunterKey && googleKey && googleCx;
+
+      const id = Date.now() + '-' + index;
+      const row = { id, company, domain: null, email: null, source: null, status: 'searching' };
+      results.push(row);
+      renderRow(row);
+      log(`Searching: ${company}`, 'info');
+
+      try {
+        if (liveMode) {
+          // Live mode
+          log(`→ Finding domain via Google CSE...`, 'info');
+          const domain = await findDomainGoogle(company, googleKey, googleCx);
+          row.domain = domain;
+
+          if (domain) {
+            log(`→ Domain found: ${domain}`, 'ok');
+            log(`→ Querying Hunter.io for emails on ${domain}...`, 'info');
+            const emails = await findEmailsHunter(domain, hunterKey);
+
+            if (emails.length > 0) {
+              row.email = emails[0].email;
+              row.source = emails[0].source;
+              row.status = 'found';
+              log(`✓ ${emails.length} email(s) found for ${domain}`, 'ok');
+              // Add extra rows for additional emails
+              for (let i = 1; i < emails.length; i++) {
+                const extra = { id: id + '-' + i, company: '', domain: '', email: emails[i].email, source: emails[i].source, status: 'found' };
+                results.push(extra);
+                renderRow(extra);
+              }
+            } else {
+              log(`◑ No emails in Hunter — guessing patterns for ${domain}`, 'warn');
+              const guesses = guessEmails(domain);
+              row.email = guesses[0].email;
+              row.source = 'pattern guess';
+              row.status = 'guessed';
+            }
+          } else {
+            row.status = 'none';
+            log(`✗ Could not find domain for: ${company}`, 'err');
+          }
+        } else {
+          // Demo mode
+          const result = await demoSearch(company);
+          row.domain = result.domain;
+          if (result.emails.length > 0) {
+            row.email = result.emails[0].email;
+            row.source = result.emails[0].source;
+            row.status = result.emails[0].status;
+            log(`✓ [DEMO] ${result.emails.length} result(s) for ${company}`, 'ok');
+            for (let i = 1; i < result.emails.length; i++) {
+              const extra = { id: id + '-' + i, company: '', domain: result.domain, email: result.emails[i].email, source: result.emails[i].source, status: result.emails[i].status };
+              results.push(extra);
+              renderRow(extra);
+            }
+          } else {
+            row.status = 'none';
+            log(`✗ [DEMO] No results for ${company}`, 'warn');
+          }
+        }
+      } catch (err) {
+        row.status = 'none';
+        log(`✗ Error for ${company}: ${err.message}`, 'err');
+      }
+
+      renderRow(row);
+      updateStats();
+      return row;
+    }
+
+    // ── Single search ──────────────────────────────────────────────────────────
+    async function searchSingle() {
+      const val = document.getElementById('single-input').value.trim();
+      if (!val) return;
+      if (isRunning) return;
+      isRunning = true;
+      document.getElementById('btn-single').disabled = true;
+      document.getElementById('btn-bulk').disabled = true;
+
+      await processCompany(val, 0);
+
+      isRunning = false;
+      document.getElementById('btn-single').disabled = false;
+      document.getElementById('btn-bulk').disabled = false;
+      document.getElementById('single-input').value = '';
+    }
+
+    // ── Bulk search ────────────────────────────────────────────────────────────
+    async function searchBulk() {
+      const raw = document.getElementById('bulk-input').value.trim();
+      if (!raw) return;
+      if (isRunning) return;
+      const companies = raw.split('\n').map(s => s.trim()).filter(Boolean);
+      if (companies.length === 0) return;
+
+      isRunning = true;
+      document.getElementById('btn-single').disabled = true;
+      document.getElementById('btn-bulk').disabled = true;
+
+      log(`Starting bulk search for ${companies.length} companies...`, 'info');
+
+      for (let i = 0; i < companies.length; i++) {
+        setProgress(i, companies.length, `Processing ${i + 1} of ${companies.length}: ${companies[i]}`);
+        await processCompany(companies[i], i);
+        if (i < companies.length - 1) await sleep(1200);
+      }
+
+      setProgress(companies.length, companies.length, 'Complete!');
+      log(`✓ Bulk search complete — ${companies.length} companies processed`, 'ok');
+
+      isRunning = false;
+      document.getElementById('btn-single').disabled = false;
+      document.getElementById('btn-bulk').disabled = false;
+    }
+
+    // ── Export CSV ─────────────────────────────────────────────────────────────
+    function exportCSV() {
+      if (results.length === 0) return;
+      const headers = ['Company', 'Domain', 'Email', 'Source', 'Status'];
+      const rows = results.map(r => [r.company, r.domain || '', r.email || '', r.source || '', r.status]);
+      const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'maritime-emails-sg-' + new Date().toISOString().slice(0, 10) + '.csv';
+      a.click();
+      log('✓ CSV exported successfully', 'ok');
+    }
+
+    // ── Clear ──────────────────────────────────────────────────────────────────
+    function clearResults() {
+      results = [];
+      document.getElementById('results-body').innerHTML = '';
+      document.getElementById('results-wrap').style.display = 'none';
+      document.getElementById('stats-row').style.display = 'none';
+      document.getElementById('log-box').innerHTML = '';
+      log('Results cleared', 'info');
+    }
+
+    // ── Enter key support ──────────────────────────────────────────────────────
+    document.getElementById('single-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') searchSingle();
+    });
+
+    // ── Key detection for demo note ────────────────────────────────────────────
+    ['hunter-key', 'google-key', 'google-cx'].forEach(id => {
+      document.getElementById(id).addEventListener('input', () => {
+        const h = document.getElementById('hunter-key').value.trim();
+        const g = document.getElementById('google-key').value.trim();
+        const c = document.getElementById('google-cx').value.trim();
+        const note = document.getElementById('demo-note');
+        if (h && g && c) {
+          note.innerHTML = '<strong>✓ Live Mode Active</strong> — Your API keys are set. Results will be fetched from Hunter.io and Google Custom Search.';
+          note.style.background = '#00d68f15';
+          note.style.borderColor = '#00d68f40';
+          note.style.color = 'var(--success)';
+        } else {
+          note.innerHTML = '<strong>⚠ Demo Mode</strong> — Enter your API keys below to enable live search. Without keys, the tool runs with <strong>realistic simulated results</strong> so you can see exactly how it works. Real API keys are free: Hunter.io (25/mo) + Google Custom Search (100/day).';
+          note.style.background = 'var(--gold-dim)';
+          note.style.borderColor = '#f0a50040';
+          note.style.color = 'var(--gold)';
+        }
+      });
+    });
+
+    log('Maritime Email Finder ready. Enter a company name to begin.', 'ok');
+  </script>
+</body>
+
+</html>
