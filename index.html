@@ -905,37 +905,52 @@
     }
 
     // ── Demo simulation ────────────────────────────────────────────────────────
-    const DEMO_COMPANIES = {
-      default: {
-        domains: ['pacificcarriers.com', 'swire.com', 'pilship.com', 'berge.com', 'thoresen.com', 'masterbulk.com'],
-        emails: [
-          ['info', 'operations', 'chartering'],
-          ['agency.sg', 'ops', 'singapore'],
-          ['info', 'sales', 'marine.ops'],
-        ]
-      }
-    };
+    // Derives a plausible domain from the actual company name entered
+    function guessDomainFromName(company) {
+      const stopwords = ['pte','ltd','llc','inc','co','group','singapore','holdings',
+                         'international','marine','shipping','maritime','the','and',
+                         'services','management','offshore','agency','navigation',
+                         'line','lines','chartering','bureau','of','academy'];
+      const clean = company
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, '')
+        .split(/\s+/)
+        .filter(w => w.length > 1 && !stopwords.includes(w));
+
+      const slug = clean.slice(0, 2).join('');
+      if (!slug) return company.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,12) + '.com';
+
+      const tlds = ['.com', '.com.sg', '.com', '.com', '.com.sg', '.net'];
+      const tld = tlds[Math.abs(hashCode(company)) % tlds.length];
+      return slug + tld;
+    }
+
+    const EMAIL_PREFIXES = [
+      ['info', 'operations', 'chartering'],
+      ['info', 'sales', 'agency'],
+      ['contact', 'marine.ops', 'singapore'],
+      ['info', 'ops', 'crewing'],
+      ['info', 'commercial', 'technical'],
+    ];
 
     async function demoSearch(company) {
-      await sleep(600 + Math.random() * 800);
-      const idx = Math.abs(hashCode(company)) % 6;
-      const domains = DEMO_COMPANIES.default.domains;
-      const domain = domains[idx] || 'example-maritime.com.sg';
-      const prefixes = DEMO_COMPANIES.default.emails[idx % 3];
+      await sleep(700 + Math.random() * 900);
+      const domain = guessDomainFromName(company);
+      const prefixSet = EMAIL_PREFIXES[Math.abs(hashCode(company)) % EMAIL_PREFIXES.length];
 
       const roll = Math.random();
-      if (roll < 0.6) {
-        // Found real-ish emails
-        const emailList = prefixes.map(p => ({
+      if (roll < 0.55) {
+        const count = 2 + (roll < 0.25 ? 1 : 0);
+        const emailList = prefixSet.slice(0, count).map(p => ({
           email: `${p}@${domain}`,
           source: p.includes('.') ? 'website page' : 'domain search',
           status: 'found'
         }));
-        return { domain, emails: emailList.slice(0, 2 + Math.floor(Math.random() * 2)) };
-      } else if (roll < 0.85) {
+        return { domain, emails: emailList };
+      } else if (roll < 0.82) {
         return { domain, emails: [{ email: `info@${domain}`, source: 'pattern guess', status: 'guessed' }] };
       } else {
-        return { domain: domain, emails: [] };
+        return { domain, emails: [] };
       }
     }
 
@@ -979,7 +994,7 @@
               log(`✓ ${emails.length} email(s) found for ${domain}`, 'ok');
               // Add extra rows for additional emails
               for (let i = 1; i < emails.length; i++) {
-                const extra = { id: id + '-' + i, company: '', domain: '', email: emails[i].email, source: emails[i].source, status: 'found' };
+                const extra = { id: id + '-' + i, company: company, domain: domain, email: emails[i].email, source: emails[i].source, status: 'found' };
                 results.push(extra);
                 renderRow(extra);
               }
@@ -1004,7 +1019,7 @@
             row.status = result.emails[0].status;
             log(`✓ [DEMO] ${result.emails.length} result(s) for ${company}`, 'ok');
             for (let i = 1; i < result.emails.length; i++) {
-              const extra = { id: id + '-' + i, company: '', domain: result.domain, email: result.emails[i].email, source: result.emails[i].source, status: result.emails[i].status };
+              const extra = { id: id + '-' + i, company: company, domain: result.domain, email: result.emails[i].email, source: result.emails[i].source, status: result.emails[i].status };
               results.push(extra);
               renderRow(extra);
             }
