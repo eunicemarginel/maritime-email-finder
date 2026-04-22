@@ -629,12 +629,15 @@
 
   <!-- Single Search -->
   <div class="card">
-    <div class="card-title">Single Company Search</div>
+    <div class="card-title">Single Company or Domain Search</div>
     <div class="search-row">
       <input type="text" id="single-input" class="search-input"
-        placeholder="e.g. Allen & Gledhill, DBS Bank, Sea Limited, Pacific Carriers..." />
+        placeholder="Company name or domain — e.g. Allen & Gledhill, dbs.com.sg, sea.com..." />
       <button class="btn btn-primary" id="btn-single" onclick="searchSingle()">Find Emails →</button>
     </div>
+    <p style="font-size:11px;color:var(--muted);margin-top:10px">
+      Enter a <strong style="color:var(--text)">company name</strong> to auto-find its domain, or paste a <strong style="color:var(--text)">domain directly</strong> (e.g. <code style="color:var(--blue)">rajah.com.sg</code>) to skip straight to email lookup.
+    </p>
   </div>
 
   <!-- Bulk Search -->
@@ -913,6 +916,13 @@
     const query = encodeURIComponent(`${company} ${suffix} official website`);
     const url = `https://www.googleapis.com/customsearch/v1?q=${query}&key=${apiKey}&cx=${cx}&num=1`;
     const resp = await fetch(url);
+    if (resp.status === 429 || resp.status === 403) {
+      const data = await resp.json().catch(() => ({}));
+      const reason = data?.error?.errors?.[0]?.reason || '';
+      if (resp.status === 429 || reason.toLowerCase().includes('quota') || reason.toLowerCase().includes('limit')) {
+        throw new QuotaError('google');
+      }
+    }
     if (!resp.ok) throw new Error('Google API error ' + resp.status);
     const data = await resp.json();
     if (data.items && data.items.length > 0) {
@@ -924,6 +934,7 @@
   async function findEmailsHunter(domain, apiKey) {
     const url = `https://api.hunter.io/v2/domain-search?domain=${domain}&api_key=${apiKey}&limit=5`;
     const resp = await fetch(url);
+    if (resp.status === 429 || resp.status === 403) throw new QuotaError('hunter');
     if (!resp.ok) throw new Error('Hunter API error ' + resp.status);
     const data = await resp.json();
     if (data.data?.emails?.length > 0) {
@@ -992,43 +1003,110 @@
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-  // ── Core search ───────────────────────────────────────────────────────────
-  async function processCompany(company, index) {
-    const hunterKey = document.getElementById('hunter-key').value.trim();
-    const googleKey = document.getElementById('google-key').value.trim();
-    const googleCx  = document.getElementById('google-cx').value.trim();
-    const liveMode  = hunterKey && googleKey && googleCx;
-    const industry  = activeIndustry;
+  // ── Domain detection ──────────────────────────────────────────────────────
+  function isDomain(input) {
+    return /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+$/.test(input.trim()) && !input.includes(' ');
+  }
 
-    const id = Date.now() + '-' + index;
-    const row = { id, company, industry, domain: null, email: null, source: null, status: 'searching' };
+  // ── Quota error class ─────────────────────────────────────────────────────
+  class QuotaError extends Error {
+    constructor(api) { super('quota'); this.api = api; }
+  }
+
+  // ── Log with manual search link ───────────────────────────────────────────
+  function logManualSearch(label, query, type = 'warn') {
+    const box = document.getElementById('log-box');
+    const t = new Date().toTimeString().slice(0, 8);
+    const url = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    line.innerHTML = `<span class="log-time">${t}</span><span class="log-${type}">${label} — <a href="${url}" target="_blank" style="color:var(--blue);text-decoration:underline">Search manually →</a></span>`;
+    box.appendChild(line);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  // ── Core search ───────────────────────────────────────────────────────────
+  async function processCompany(input, index) {
+    const hunterKey  = document.getElementById('hunter-key').value.trim();
+    const googleKey  = document.getElementById('google-key').value.trim();
+    const googleCx   = document.getElementById('google-cx').value.trim();
+    const liveMode   = hunterKey && googleKey && googleCx;
+    const hunterOnly = hunterKey && !(googleKey && googleCx);
+    const industry   = activeIndustry;
+    const domainInput = isDomain(input);
+
+    const company = input;
+    const id  = Date.now() + '-' + index;
+    const row = { id, company, industry, domain: domainInput ? input : null, email: null, source: null, status: 'searching' };
     results.push(row);
     renderRow(row);
-    log(`Searching: ${company}`, 'info');
+
+    if (domainInput) {
+      log(`Domain input detected: ${input}`, 'info');
+    } else {
+      log(`Searching: ${input}`, 'info');
+    }
 
     try {
-      if (liveMode) {
-        log(`→ Finding domain via Google CSE...`, 'info');
-        const domain = await findDomainGoogle(company, googleKey, googleCx, industry);
-        row.domain = domain;
+      if (liveMode || hunterOnly) {
+        let domain = domainInput ? input : null;
+
+        // Step 1: Find domain (skip if input is already a domain)
+        if (!domain) {
+          if (googleKey && googleCx) {
+            log(`→ Finding domain via Google CSE...`, 'info');
+            try {
+              domain = await findDomainGoogle(company, googleKey, googleCx, industry);
+            } catch (err) {
+              if (err instanceof QuotaError) {
+                log(`⚠ Google CSE quota reached — falling back to domain guess`, 'warn');
+                logManualSearch(`Find domain for "${company}"`, `${company} Singapore official website`);
+                domain = guessDomainFromName(company, industry);
+                row.domain = domain;
+              } else throw err;
+            }
+          } else {
+            domain = guessDomainFromName(company, industry);
+            log(`→ No Google key — guessing domain: ${domain}`, 'warn');
+          }
+          row.domain = domain;
+        }
 
         if (domain) {
           log(`→ Domain: ${domain}`, 'ok');
-          log(`→ Querying Hunter.io for emails...`, 'info');
-          const emails = await findEmailsHunter(domain, hunterKey);
 
-          if (emails.length > 0) {
-            row.email  = emails[0].email;
-            row.source = emails[0].source;
-            row.status = 'found';
-            log(`✓ ${emails.length} email(s) found for ${domain}`, 'ok');
-            for (let i = 1; i < emails.length; i++) {
-              const extra = { id: id + '-' + i, company, industry, domain, email: emails[i].email, source: emails[i].source, status: 'found' };
-              results.push(extra);
-              renderRow(extra);
+          // Step 2: Find emails via Hunter
+          if (hunterKey) {
+            log(`→ Querying Hunter.io for emails...`, 'info');
+            let emails = [];
+            try {
+              emails = await findEmailsHunter(domain, hunterKey);
+            } catch (err) {
+              if (err instanceof QuotaError) {
+                log(`⚠ Hunter.io quota reached — falling back to pattern guess`, 'warn');
+                logManualSearch(`Find emails for "${domain}"`, `"@${domain}" email contact Singapore`);
+              } else throw err;
+            }
+
+            if (emails.length > 0) {
+              row.email  = emails[0].email;
+              row.source = emails[0].source;
+              row.status = 'found';
+              log(`✓ ${emails.length} email(s) found for ${domain}`, 'ok');
+              for (let i = 1; i < emails.length; i++) {
+                const extra = { id: id + '-' + i, company, industry, domain, email: emails[i].email, source: emails[i].source, status: 'found' };
+                results.push(extra);
+                renderRow(extra);
+              }
+            } else {
+              log(`◑ No emails in Hunter — guessing patterns for ${domain}`, 'warn');
+              const guesses = guessEmails(domain, industry);
+              row.email  = guesses[0].email;
+              row.source = 'pattern guess';
+              row.status = 'guessed';
             }
           } else {
-            log(`◑ No emails in Hunter — guessing patterns for ${domain}`, 'warn');
+            log(`◑ No Hunter key — guessing email patterns for ${domain}`, 'warn');
             const guesses = guessEmails(domain, industry);
             row.email  = guesses[0].email;
             row.source = 'pattern guess';
@@ -1037,17 +1115,21 @@
         } else {
           row.status = 'none';
           log(`✗ Could not find domain for: ${company}`, 'err');
+          logManualSearch(`Find domain for "${company}"`, `${company} Singapore official website email contact`);
         }
       } else {
-        const result = await demoSearch(company, industry);
-        row.domain = result.domain;
+        // Demo mode
+        const result = await demoSearch(domainInput ? `demo-${input}` : company, industry);
+        row.domain = domainInput ? input : result.domain;
         if (result.emails.length > 0) {
-          row.email  = result.emails[0].email;
-          row.source = result.emails[0].source;
-          row.status = result.emails[0].status;
-          log(`✓ [DEMO] ${result.emails.length} result(s) for ${company}`, 'ok');
-          for (let i = 1; i < result.emails.length; i++) {
-            const extra = { id: id + '-' + i, company, industry, domain: result.domain, email: result.emails[i].email, source: result.emails[i].source, status: result.emails[i].status };
+          const finalDomain = row.domain;
+          const emails = result.emails.map(e => ({ ...e, email: e.email.replace(/@.*/, `@${finalDomain}`) }));
+          row.email  = emails[0].email;
+          row.source = emails[0].source;
+          row.status = emails[0].status;
+          log(`✓ [DEMO] ${emails.length} result(s) for ${company}`, 'ok');
+          for (let i = 1; i < emails.length; i++) {
+            const extra = { id: id + '-' + i, company, industry, domain: finalDomain, email: emails[i].email, source: emails[i].source, status: emails[i].status };
             results.push(extra);
             renderRow(extra);
           }
