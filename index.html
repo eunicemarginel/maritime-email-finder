@@ -447,7 +447,7 @@
       overflow-x: auto;
     }
 
-    table { width: 100%; border-collapse: collapse; min-width: 600px; }
+    table { width: 100%; border-collapse: collapse; }
 
     thead tr { background: var(--surface2); }
 
@@ -458,7 +458,7 @@
       text-transform: uppercase;
       color: var(--muted);
       text-align: left;
-      padding: 11px 16px;
+      padding: 10px 12px;
       border-bottom: 1px solid var(--border);
       white-space: nowrap;
     }
@@ -471,14 +471,12 @@
     tbody tr:last-child { border-bottom: none; }
     tbody tr:hover { background: var(--surface2); }
 
-    tbody td { padding: 12px 16px; font-size: 12px; vertical-align: middle; }
+    tbody td { padding: 10px 12px; font-size: 12px; vertical-align: middle; }
 
-    .td-company { font-weight: 600; color: var(--text); }
-    .td-industry { font-size: 10px; }
-    .td-domain { color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
-    .td-email { color: var(--blue); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+    .td-company { font-weight: 600; color: var(--text); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .td-domain { color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 11px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .td-email { color: var(--blue); font-family: 'JetBrains Mono', monospace; font-size: 11px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .td-email.guessed { color: var(--amber); }
-    .td-source { font-size: 10px; color: var(--muted2); }
 
     .badge {
       display: inline-flex;
@@ -701,7 +699,6 @@
             <th>Industry</th>
             <th>Domain</th>
             <th>Email</th>
-            <th>Source</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -897,11 +894,13 @@
       : '—';
 
     tr.innerHTML = `
-      <td class="td-company">${r.company || '—'}</td>
-      <td class="td-industry">${industryLabel}</td>
-      <td class="td-domain">${r.domain || '—'}</td>
-      <td class="td-email ${r.status === 'guessed' ? 'guessed' : ''}">${r.email || '—'}</td>
-      <td class="td-source">${r.source || '—'}</td>
+      <td class="td-company" title="${r.company || ''}">${r.company || '—'}</td>
+      <td>${industryLabel}</td>
+      <td class="td-domain" title="${r.domain || ''}">${r.domain || '—'}</td>
+      <td class="td-email ${r.status === 'guessed' ? 'guessed' : ''}" title="${r.email || ''}">
+        ${r.email || '—'}
+        ${r.source ? `<div style="font-size:10px;color:var(--muted2);margin-top:2px">${r.source}</div>` : ''}
+      </td>
       <td>${statusMap[r.status] || ''}</td>
     `;
 
@@ -954,6 +953,8 @@
 
   // ── Demo simulation ───────────────────────────────────────────────────────
   function guessDomainFromName(company, industry) {
+    if (isDomain(company)) return company;
+
     const baseStopwords = ['pte','ltd','llc','inc','co','group','singapore','holdings',
                            'international','the','and','of','&'];
     const industryStopwords = INDUSTRIES[industry]?.stopwords || [];
@@ -1119,11 +1120,11 @@
         }
       } else {
         // Demo mode
-        const result = await demoSearch(domainInput ? `demo-${input}` : company, industry);
-        row.domain = domainInput ? input : result.domain;
+        const result = await demoSearch(company, industry);
+        const finalDomain = domainInput ? input.trim() : result.domain;
+        row.domain = finalDomain;
         if (result.emails.length > 0) {
-          const finalDomain = row.domain;
-          const emails = result.emails.map(e => ({ ...e, email: e.email.replace(/@.*/, `@${finalDomain}`) }));
+          const emails = result.emails.map(e => ({ ...e, email: e.email.replace(/@[^@]+$/, `@${finalDomain}`) }));
           row.email  = emails[0].email;
           row.source = emails[0].source;
           row.status = emails[0].status;
@@ -1196,12 +1197,12 @@
     if (results.length === 0) return;
     const headers = ['Company', 'Industry', 'Domain', 'Email', 'Source', 'Status'];
     const rows = results.map(r => [
-      r.company,
+      r.company || '',
       INDUSTRIES[r.industry]?.label || r.industry || '',
       r.domain || '',
       r.email || '',
       r.source || '',
-      r.status
+      r.status || ''
     ]);
     const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
